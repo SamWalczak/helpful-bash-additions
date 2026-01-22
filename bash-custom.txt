@@ -1,0 +1,233 @@
+# ============================================
+# CUSTOM BASH/ZSH ADDITIONS
+# Git shortcuts and helpful aliases
+# Works on both bash and zsh
+# ============================================
+
+# Detect current shell
+if [ -n "$BASH_VERSION" ]; then
+    CURRENT_SHELL="bash"
+    RC_FILE="$HOME/.bashrc"
+elif [ -n "$ZSH_VERSION" ]; then
+    CURRENT_SHELL="zsh"
+    RC_FILE="$HOME/.zshrc"
+else
+    # Fallback to bash
+    CURRENT_SHELL="bash"
+    RC_FILE="$HOME/.bashrc"
+fi
+
+# Git shortcuts
+alias gs='git status'
+alias ga='git add -A'
+alias gd='git diff'
+alias gdiff='gd'
+alias gb='git branch'
+alias gco='git checkout'
+alias gcm='git commit -m'
+alias gpo='git push origin $(git branch --show-current)'
+alias gpr='git pull origin $(git branch --show-current)'
+alias gundo='git reset --soft HEAD~1'
+alias gstash='git stash'
+alias gpop='git stash pop'
+alias glist='git stash list'
+alias gsl='git stash list'
+
+# Function for popping specific stash
+gpopn() {
+    if [ -z "$1" ]; then
+        echo "Usage: gpopn <stash-number> or gpn <stash-number>"
+        echo "Example: gpopn 0"
+        echo "Run 'glist' or 'gsl' to see all stashes"
+        return 1
+    fi
+    git stash pop stash@{$1}
+}
+alias gpn='gpopn'
+
+# Bash/Zsh file management (shell-aware)
+alias bsource="source $RC_FILE"
+alias bopen="vim $RC_FILE"
+alias dumprc="tail -200 $RC_FILE | grep -A 200 '# CUSTOM BASH'"
+alias drc='dumprc'
+
+# Help command to show custom aliases
+bashhelp() {
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  CUSTOM SHELL ALIASES ($CURRENT_SHELL)"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "GIT:"
+    echo "  gs                     - Git status"
+    echo "  ga                     - Git add all"
+    echo "  gd/gdiff               - Git diff"
+    echo "  gb                     - Git branch list"
+    echo "  gco <branch>           - Git checkout branch (use -b for new)"
+    echo "  gcm 'message'          - Git commit with message"
+    echo "  gpo                    - Git push to current branch"
+    echo "  gpr                    - Git pull from current branch"
+    echo "  gundo                  - Undo last commit (keep changes)"
+    echo "  gstash                 - Stash changes"
+    echo "  gpop                   - Pop latest stash"
+    echo "  gpn/gpopn <n>          - Pop specific stash number"
+    echo "  gsl/glist              - List all stashes"
+    echo ""
+    echo "SHELL:"
+    echo "  bsource                - Reload shell config ($RC_FILE)"
+    echo "  bopen                  - Edit shell config"
+    echo "  dumprc / drc           - Show custom additions"
+    echo "  bhelp / bash_help      - Show this help message"
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+}
+alias bhelp='bashhelp'
+alias bash_help='bashhelp'
+
+# Shrimp rotation
+if [ -n "$ZSH_VERSION" ]; then
+    # ZSH arrays are 1-indexed
+    SHRIMP_INDEX=1
+    SHRIMPS=("🦐" "🍤")
+    CURRENT_SHRIMP="${SHRIMPS[1]}"
+    
+    rotate_shrimp() {
+        CURRENT_SHRIMP="${SHRIMPS[$SHRIMP_INDEX]}"
+        SHRIMP_INDEX=$(( SHRIMP_INDEX % ${#SHRIMPS[@]} + 1 ))
+    }
+else
+    # BASH arrays are 0-indexed
+    SHRIMP_INDEX=0
+    SHRIMPS=("🦐" "🍤")
+    CURRENT_SHRIMP="${SHRIMPS[0]}"
+    
+    rotate_shrimp() {
+        CURRENT_SHRIMP="${SHRIMPS[$SHRIMP_INDEX]}"
+        SHRIMP_INDEX=$(( (SHRIMP_INDEX + 1) % ${#SHRIMPS[@]} ))
+    }
+fi
+
+# Parse git branch name (works in both bash and zsh)
+parse_git_branch() {
+    git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/'
+}
+
+# Parse git info (commit hash, ahead/behind, stash count, conflicts)
+parse_git_info() {
+    # Check if in a git repo
+    if ! git rev-parse --git-dir > /dev/null 2>&1; then
+        echo ""
+        return
+    fi
+    
+    local info=""
+    
+    # Get short commit hash
+    local commit=$(git rev-parse --short HEAD 2>/dev/null)
+    info+=" $commit"
+    
+    # Check for merge conflicts
+    if git ls-files -u | grep -q .; then
+        if [ "$CURRENT_SHELL" = "zsh" ]; then
+            info+=" %F{magenta}%B⚠️CONFLICT%b%f"
+        else
+            info+=" \[\033[1;35m\]⚠️CONFLICT\[\033[00m\]"
+        fi
+    fi
+    
+    # Check upstream status (ahead/behind)
+    local upstream=$(git rev-parse --abbrev-ref @{upstream} 2>/dev/null)
+    if [ -n "$upstream" ]; then
+        local ahead=$(git rev-list --count HEAD@{upstream}..HEAD 2>/dev/null)
+        local behind=$(git rev-list --count HEAD..HEAD@{upstream} 2>/dev/null)
+        
+        if [ "$ahead" -gt 0 ]; then
+            info+=" ↑$ahead"
+        fi
+        if [ "$behind" -gt 0 ]; then
+            info+=" ↓$behind"
+        fi
+    fi
+    
+    # Check stash count
+    local stash_count=$(git stash list 2>/dev/null | wc -l)
+    if [ "$stash_count" -gt 0 ]; then
+        if [ "$CURRENT_SHELL" = "zsh" ]; then
+            info+=" %F{cyan}stash:$stash_count%f"
+        else
+            info+=" \[\033[0;36m\]stash:$stash_count\[\033[00m\]"
+        fi
+    fi
+    
+    echo "$info"
+}
+
+# Determine git status color
+parse_git_status_color() {
+    # Check if in a git repo
+    if ! git rev-parse --git-dir > /dev/null 2>&1; then
+        echo ""
+        return
+    fi
+    
+    # Check for changes
+    local git_status=$(git status --porcelain 2>/dev/null)
+    local staged=$(echo "$git_status" | grep -E "^(M|A|D|R|C)" | wc -l)
+    local unstaged=$(echo "$git_status" | grep -E "^.(M|D)" | wc -l)
+    local untracked=$(echo "$git_status" | grep "^??" | wc -l)
+    
+    # Determine color based on status (shell-specific)
+    if [ "$CURRENT_SHELL" = "zsh" ]; then
+        if [ "$staged" -gt 0 ]; then
+            echo "%F{yellow}%B"  # Yellow bold
+        elif [ "$unstaged" -gt 0 ] || [ "$untracked" -gt 0 ]; then
+            echo "%F{red}"  # Red
+        else
+            echo "%F{green}"  # Green
+        fi
+    else
+        if [ "$staged" -gt 0 ]; then
+            echo -e "\033[1;33m"  # Yellow (staged changes)
+        elif [ "$unstaged" -gt 0 ] || [ "$untracked" -gt 0 ]; then
+            echo -e "\033[0;31m"  # Red (unstaged/untracked)
+        else
+            echo -e "\033[0;32m"  # Green (clean)
+        fi
+    fi
+}
+
+# Set up prompt based on shell type
+if [ "$CURRENT_SHELL" = "zsh" ]; then
+    # ZSH: Use precmd hook and PROMPT with % escapes
+    
+    # Initialize psvar for shrimp rotation
+    typeset -ga psvar
+    psvar[1]="${SHRIMPS[0]}"
+    
+    precmd() {
+        rotate_shrimp
+        # Update psvar for prompt
+        psvar[1]=$CURRENT_SHRIMP
+    }
+    
+    setopt PROMPT_SUBST
+    PROMPT='%1v '                                 # Shrimp from psvar[1]
+    PROMPT+='%F{240}[%*]%f '                      # Timestamp [HH:MM:SS] (gray)
+    PROMPT+='%F{green}%B%n@%m%b%f:'               # user@host (green bold)
+    PROMPT+='%F{blue}%B%~%b%f'                    # Current directory (blue bold)
+    PROMPT+='$(parse_git_status_color)'           # Git status color
+    PROMPT+=' $(parse_git_branch)'                # Branch name
+    PROMPT+='$(parse_git_info)'                   # Commit hash + extras
+    PROMPT+='%f%b$ '                              # Reset color + prompt
+else
+    # BASH: Use PROMPT_COMMAND and PS1 with \ escapes
+    PROMPT_COMMAND="rotate_shrimp${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+    
+    PS1='${CURRENT_SHRIMP} '
+    PS1+='\[\033[0;90m\][\t]\[\033[00m\] '        # Timestamp [HH:MM:SS] (gray)
+    PS1+='\[\033[01;32m\]\u@\h\[\033[00m\]:'      # user@host (green)
+    PS1+='\[\033[01;34m\]\w\[\033[00m\]'          # Current directory (blue)
+    PS1+='\[$(parse_git_status_color)\]'          # Git status color
+    PS1+=' $(parse_git_branch)'                   # Branch name
+    PS1+='$(parse_git_info)'                      # Commit hash + extras
+    PS1+='\[\033[00m\]\$ '                        # Reset color + prompt
+fi
