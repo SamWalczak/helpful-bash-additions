@@ -48,7 +48,7 @@ alias gpn='gpopn'
 # Bash/Zsh file management (shell-aware)
 alias bsource="source $RC_FILE"
 alias bopen="vim $RC_FILE"
-alias dumprc="tail -200 $RC_FILE | grep -A 200 '# CUSTOM BASH'"
+alias dumprc="tail -n +1 $RC_FILE"
 alias drc='dumprc'
 
 # Help command to show custom aliases
@@ -75,7 +75,7 @@ bashhelp() {
     echo "SHELL:"
     echo "  bsource                - Reload shell config ($RC_FILE)"
     echo "  bopen                  - Edit shell config"
-    echo "  dumprc / drc           - Show custom additions"
+    echo "  dumprc / drc           - Show bash file"
     echo "  bhelp / bash_help      - Show this help message"
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
