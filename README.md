@@ -2,12 +2,12 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/bash-custom.git
-cd bash-custom
+git clone https://github.com/SamWalczak/helpful-bash-additions.git
+cd helpful-bash-additions
 
 # Run the installer (detects macOS/Linux automatically)
-chmod +x install.sh
-./install.sh
+chmod +x setup.sh
+./setup.sh
 
 # Reload your shell
 source ~/.bashrc  # Linux
