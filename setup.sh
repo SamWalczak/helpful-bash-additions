@@ -16,6 +16,28 @@ detect_os() {
     fi
 }
 
+ask_emoji_preference() {
+    echo ""
+    echo "Enable emoji in prompt?"
+    echo "  y) Yes - Use emoji (default)"
+    echo "  n) No  - Use [>] [<] instead (better for some terminals)"
+    read -p "Choice [Y/n]: " emoji_choice
+    
+    if [[ "$emoji_choice" =~ ^[Nn]$ ]]; then
+        USE_EMOJI=false
+    else
+        USE_EMOJI=true
+    fi
+}
+
+# Apply emoji preference to the installed config
+apply_emoji_preference() {
+    if [ "$USE_EMOJI" = false ]; then
+        sed -i.tmp 's/^USE_EMOJI=true/USE_EMOJI=false/' "$SHELL_RC"
+        rm -f "${SHELL_RC}.tmp"
+    fi
+}
+
 uninstall() {
     echo "Uninstalling custom bash additions"
     echo "=================================="
@@ -70,11 +92,11 @@ uninstall() {
     echo ""
     echo "Uninstall complete"
     echo ""
-    echo -n "Changes applied. To see them in this terminal:"
+    echo "Changes applied. To see them in this terminal:"
     if [ "$OS" == "mac" ]; then
-        echo " source ~/.zshrc"
+        echo "  source ~/.zshrc"
     else
-        echo " source ~/.bashrc"
+        echo "  source ~/.bashrc"
     fi
     echo ""
     echo "(or open a new terminal tab - changes are permanent)"
@@ -156,6 +178,8 @@ install() {
                     # No alphanumeric content found - file should be empty
                     > "$SHELL_RC"
                 fi
+                # Ask about emoji preference for update
+                ask_emoji_preference
                 ;;
             3)
                 echo "Installation cancelled"
@@ -166,22 +190,34 @@ install() {
                 exit 1
                 ;;
         esac
+    else
+        ask_emoji_preference
     fi
     
     # Append bash-custom.txt to shell config
     echo "Installing custom bash additions..."
     cat bash-custom.txt >> "$SHELL_RC"
     
+    # Apply emoji preference
+    apply_emoji_preference
+    
     echo ""
     echo "Installation complete"
     echo ""
-    echo -n "Changes applied. To see them in this terminal:"
+    echo "Changes applied. To see them in this terminal:"
     if [ "$OS" == "mac" ]; then
-        echo " source ~/.zshrc"
+        echo "  source ~/.zshrc"
     else
-        echo " source ~/.bashrc"
+        echo "  source ~/.bashrc"
     fi
-
+    echo ""
+    echo "(or open a new terminal tab - changes are permanent)"
+    echo ""
+    echo "Try it out:"
+    echo "  - bhelp         (show all commands)"
+    echo "  - gs            (git status)"
+    echo "  - toggle_emoji  (toggle emoji on/off)"
+    echo ""
 }
 
 if [ "$1" == "-u" ] || [ "$1" == "--uninstall" ]; then
