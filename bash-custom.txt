@@ -4,6 +4,9 @@
 # Works on both bash and zsh
 # ============================================
 
+# Emoji configuration (set to false for compatibility with terminals that don't support emoji)
+USE_EMOJI=true
+
 # Detect current shell
 if [ -n "$BASH_VERSION" ]; then
     CURRENT_SHELL="bash"
@@ -15,6 +18,37 @@ else
     # Fallback to bash
     CURRENT_SHELL="bash"
     RC_FILE="$HOME/.bashrc"
+fi
+
+# Shrimp rotation
+if [ -n "$ZSH_VERSION" ]; then
+    # ZSH arrays are 1-indexed
+    SHRIMP_INDEX=1
+    if [ "$USE_EMOJI" = true ]; then
+        SHRIMPS=("🦐" "🍤")
+    else
+        SHRIMPS=("[>]" "[<]")
+    fi
+    CURRENT_SHRIMP="${SHRIMPS[1]}"
+    
+    rotate_shrimp() {
+        CURRENT_SHRIMP="${SHRIMPS[$SHRIMP_INDEX]}"
+        SHRIMP_INDEX=$(( SHRIMP_INDEX % ${#SHRIMPS[@]} + 1 ))
+    }
+else
+    # BASH arrays are 0-indexed
+    SHRIMP_INDEX=0
+    if [ "$USE_EMOJI" = true ]; then
+        SHRIMPS=("🦐" "🍤")
+    else
+        SHRIMPS=("[>]" "[<]")
+    fi
+    CURRENT_SHRIMP="${SHRIMPS[0]}"
+    
+    rotate_shrimp() {
+        CURRENT_SHRIMP="${SHRIMPS[$SHRIMP_INDEX]}"
+        SHRIMP_INDEX=$(( (SHRIMP_INDEX + 1) % ${#SHRIMPS[@]} ))
+    }
 fi
 
 # Git shortcuts
@@ -51,11 +85,23 @@ alias bopen="vim $RC_FILE"
 alias dumprc="tail -n +1 $RC_FILE"
 alias drc='dumprc'
 
+# Toggle emoji on/off
+toggle_emoji() {
+    if [ "$USE_EMOJI" = true ]; then
+        sed -i.tmp 's/^USE_EMOJI=true/USE_EMOJI=false/' "$RC_FILE"
+        echo "Emoji disabled. Run 'bsource' or open a new terminal to apply."
+    else
+        sed -i.tmp 's/^USE_EMOJI=false/USE_EMOJI=true/' "$RC_FILE"
+        echo "Emoji enabled. Run 'bsource' or open a new terminal to apply."
+    fi
+    rm -f "${RC_FILE}.tmp"
+}
+
 # Help command to show custom aliases
 bashhelp() {
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "---------------------------------------------------"
     echo "  CUSTOM SHELL ALIASES ($CURRENT_SHELL)"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "---------------------------------------------------"
     echo ""
     echo "GIT:"
     echo "  gs                     - Git status"
@@ -76,35 +122,13 @@ bashhelp() {
     echo "  bsource                - Reload shell config ($RC_FILE)"
     echo "  bopen                  - Edit shell config"
     echo "  dumprc / drc           - Show bash file"
+    echo "  toggle_emoji           - Toggle emoji on/off in prompt"
     echo "  bhelp / bash_help      - Show this help message"
     echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "---------------------------------------------------"
 }
 alias bhelp='bashhelp'
 alias bash_help='bashhelp'
-
-# Shrimp rotation
-if [ -n "$ZSH_VERSION" ]; then
-    # ZSH arrays are 1-indexed
-    SHRIMP_INDEX=1
-    SHRIMPS=("🦐" "🍤")
-    CURRENT_SHRIMP="${SHRIMPS[1]}"
-    
-    rotate_shrimp() {
-        CURRENT_SHRIMP="${SHRIMPS[$SHRIMP_INDEX]}"
-        SHRIMP_INDEX=$(( SHRIMP_INDEX % ${#SHRIMPS[@]} + 1 ))
-    }
-else
-    # BASH arrays are 0-indexed
-    SHRIMP_INDEX=0
-    SHRIMPS=("🦐" "🍤")
-    CURRENT_SHRIMP="${SHRIMPS[0]}"
-    
-    rotate_shrimp() {
-        CURRENT_SHRIMP="${SHRIMPS[$SHRIMP_INDEX]}"
-        SHRIMP_INDEX=$(( (SHRIMP_INDEX + 1) % ${#SHRIMPS[@]} ))
-    }
-fi
 
 # Parse git branch name (works in both bash and zsh)
 parse_git_branch() {
@@ -128,9 +152,9 @@ parse_git_info() {
     # Check for merge conflicts
     if git ls-files -u | grep -q .; then
         if [ "$CURRENT_SHELL" = "zsh" ]; then
-            info+=" %F{magenta}%B⚠️CONFLICT%b%f"
+            info+=" %F{magenta}%BCONFLICT%b%f"
         else
-            info+=" \[\033[1;35m\]⚠️CONFLICT\[\033[00m\]"
+            info+=" \[\033[1;35m\]CONFLICT\[\033[00m\]"
         fi
     fi
     
@@ -201,7 +225,7 @@ if [ "$CURRENT_SHELL" = "zsh" ]; then
     
     # Initialize psvar for shrimp rotation
     typeset -ga psvar
-    psvar[1]="${SHRIMPS[0]}"
+    psvar[1]="${SHRIMPS[1]}"
     
     precmd() {
         rotate_shrimp
