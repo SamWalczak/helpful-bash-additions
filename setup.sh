@@ -1,19 +1,134 @@
 #!/bin/bash
 
-# Function to detect OS and set shell config
-detect_os() {
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        OS="mac"
-        SHELL_RC="$HOME/.zshrc"
-        BACKUP_RC="$HOME/.zshrc.backup"
-    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        OS="linux"
-        SHELL_RC="$HOME/.bashrc"
-        BACKUP_RC="$HOME/.bashrc.backup"
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CUSTOM_FILE="$REPO_DIR/bash-custom.txt"
+
+BEGIN_MARK='# >>> helpful-bash-additions >>>'
+END_MARK='# <<< helpful-bash-additions <<<'
+
+detect_shell() {
+    case "$(basename "${SHELL:-}")" in
+        zsh)
+            SHELL_NAME="zsh"
+            SHELL_RC="$HOME/.zshrc"
+            ;;
+        bash)
+            SHELL_NAME="bash"
+            SHELL_RC="$HOME/.bashrc"
+            ;;
+        *)
+            echo "Unsupported login shell: ${SHELL:-not set}"
+            echo "Only bash and zsh are supported"
+            exit 1
+            ;;
+    esac
+    echo "Detected login shell: $SHELL_NAME"
+    echo "Shell config: $SHELL_RC"
+    echo ""
+}
+
+installed_kind() {
+    if grep -qxF "$BEGIN_MARK" "$SHELL_RC" 2>/dev/null; then
+        echo "block"
+    elif grep -qE '^# CUSTOM BASH(/ZSH)? ADDITIONS$' "$SHELL_RC" 2>/dev/null; then
+        echo "legacy"
     else
-        echo "Unsupported OS: $OSTYPE"
+        echo "none"
+    fi
+}
+
+backup_rc() {
+    if [ ! -s "$SHELL_RC" ]; then
+        BACKUP_FILE=""
+        echo "No existing config to backup (file is new or empty)"
+        return
+    fi
+    local base n
+    base="${SHELL_RC}.backup-$(date +%Y%m%d-%H%M%S)"
+    BACKUP_FILE="$base"
+    n=1
+    while [ -e "$BACKUP_FILE" ]; do
+        BACKUP_FILE="${base}-${n}"
+        n=$((n + 1))
+    done
+    if ! cp "$SHELL_RC" "$BACKUP_FILE"; then
+        echo "Error: could not write backup $BACKUP_FILE"
         exit 1
     fi
+    echo "Backup saved at: $BACKUP_FILE"
+}
+
+print_block() {
+    local escaped
+    escaped=$(printf '%s' "$CUSTOM_FILE" | sed "s/'/'\\\\''/g")
+    echo "$BEGIN_MARK"
+    echo "# Added by setup.sh. To remove: $REPO_DIR/setup.sh -u"
+    echo "USE_EMOJI=$USE_EMOJI"
+    echo "source '$escaped'"
+    echo "$END_MARK"
+}
+
+rewrite_rc() {
+    local mode="$1" kind tmp status
+    kind="$(installed_kind)"
+    tmp="$(mktemp "${TMPDIR:-/tmp}/bash-additions.XXXXXX")" || exit 1
+
+    if [ "$mode" = "replace" ]; then
+        print_block > "$tmp.block"
+    else
+        : > "$tmp.block"
+    fi
+
+    awk -v kind="$kind" -v begin="$BEGIN_MARK" -v end="$END_MARK" -v blockfile="$tmp.block" '
+        { line[NR] = $0 }
+        END {
+            first = 0; last = 0
+            if (kind == "block") {
+                for (i = 1; i <= NR; i++) {
+                    if (!first && line[i] == begin) first = i
+                    if (first && !last && line[i] == end) last = i
+                }
+            } else {
+                # Legacy copy: banner to closing fi
+                for (i = 1; i <= NR && !first; i++) {
+                    if (line[i] ~ /^# CUSTOM BASH(\/ZSH)? ADDITIONS$/) {
+                        first = i
+                        if (i > 1 && line[i - 1] ~ /^# =+$/) first = i - 1
+                    }
+                }
+                for (i = first + 1; first && i < NR && !last; i++) {
+                    if (line[i] ~ /Reset color [+] prompt/ && line[i + 1] == "fi") last = i + 1
+                }
+            }
+            if (!first || !last) exit 3
+            for (i = 1; i < first; i++) print line[i]
+            while ((getline text < blockfile) > 0) print text
+            for (i = last + 1; i <= NR; i++) print line[i]
+        }
+    ' "$SHELL_RC" > "$tmp"
+    status=$?
+
+    if [ "$status" -eq 3 ]; then
+        rm -f "$tmp" "$tmp.block"
+        echo "Error: found the start of an install in $SHELL_RC but not its end"
+        echo "Nothing was changed. Remove the old lines by hand, then run setup again."
+        exit 1
+    elif [ "$status" -ne 0 ]; then
+        rm -f "$tmp" "$tmp.block"
+        echo "Error: could not rewrite $SHELL_RC. Nothing was changed."
+        exit 1
+    fi
+
+    cat "$tmp" > "$SHELL_RC"
+    rm -f "$tmp" "$tmp.block"
+}
+
+append_block() {
+    # Make sure the file ends with a newline
+    if [ -s "$SHELL_RC" ] && [ -n "$(tail -c 1 "$SHELL_RC")" ]; then
+        echo "" >> "$SHELL_RC"
+    fi
+    print_block >> "$SHELL_RC"
 }
 
 ask_emoji_preference() {
@@ -21,8 +136,8 @@ ask_emoji_preference() {
     echo "Enable emoji in prompt?"
     echo "  y) Yes - Use emoji (default)"
     echo "  n) No  - Use [>] [<] instead (better for some terminals)"
-    read -p "Choice [Y/n]: " emoji_choice
-    
+    read -r -p "Choice [Y/n]: " emoji_choice || emoji_choice=""
+
     if [[ "$emoji_choice" =~ ^[Nn]$ ]]; then
         USE_EMOJI=false
     else
@@ -30,101 +145,69 @@ ask_emoji_preference() {
     fi
 }
 
-# Apply emoji preference to the installed config
-apply_emoji_preference() {
-    if [ "$USE_EMOJI" = false ]; then
-        sed -i.tmp 's/^USE_EMOJI=true/USE_EMOJI=false/' "$SHELL_RC"
-        rm -f "${SHELL_RC}.tmp"
-    fi
+print_reload_hint() {
+    echo "Changes applied. To see them in this terminal:"
+    echo "  source $SHELL_RC"
+    echo ""
+    echo "(or open a new terminal tab - changes are permanent)"
+    echo ""
 }
 
 uninstall() {
     echo "Uninstalling custom bash additions"
     echo "=================================="
     echo ""
-    
-    detect_os
-    
-    if [ "$OS" == "mac" ]; then
-        echo "Detected: macOS"
-    else
-        echo "Detected: Linux"
-    fi
-    echo "Shell config: $SHELL_RC"
-    echo ""
-    
-    # Check if custom bash is installed
-    if ! grep -q "# CUSTOM BASH" "$SHELL_RC" 2>/dev/null; then
+
+    detect_shell
+
+    if [ "$(installed_kind)" = "none" ]; then
         echo "Custom bash additions not found in $SHELL_RC"
         echo "Nothing to uninstall"
         exit 0
     fi
-    
-    # Confirm uninstall
-    echo "Warning: this will remove all custom bash additions from $SHELL_RC"
-    read -p "Are you sure? [y/N]: " confirm
-    
+
+    echo "Warning: this will remove the custom bash additions from $SHELL_RC"
+    read -r -p "Are you sure? [y/N]: " confirm || confirm=""
+
     if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
         echo "Uninstall cancelled"
         exit 0
     fi
-    
-    # Backup before uninstalling
+
     echo "Creating backup..."
-    cp "$SHELL_RC" "${SHELL_RC}.backup-$(date +%s)"
-    echo "Backup saved: ${SHELL_RC}.backup-$(date +%s)"
+    backup_rc
     echo ""
-    
-    # Remove custom bash additions
+
     echo "Removing custom bash additions..."
-    # Remove everything from # CUSTOM BASH to end of file
-    sed -i.tmp '/# CUSTOM BASH/,$d' "$SHELL_RC"
-    rm -f "${SHELL_RC}.tmp"
-    # Remove trailing lines that are blank or only contain # and =
-    LAST_LINE=$(grep -n '[a-zA-Z0-9]' "$SHELL_RC" | tail -1 | cut -d: -f1)
-    if [ -n "$LAST_LINE" ]; then
-        head -n "$LAST_LINE" "$SHELL_RC" > "$SHELL_RC.tmp" && mv "$SHELL_RC.tmp" "$SHELL_RC"
-    else
-        # No alphanumeric content found - file should be empty
-        > "$SHELL_RC"
-    fi
-    
+    rewrite_rc remove
+
     echo ""
     echo "Uninstall complete"
     echo ""
-    echo "Changes applied. To see them in this terminal:"
-    if [ "$OS" == "mac" ]; then
-        echo "  source ~/.zshrc"
-    else
-        echo "  source ~/.bashrc"
+    print_reload_hint
+    if [ -n "$BACKUP_FILE" ]; then
+        echo "Backup saved at: $BACKUP_FILE"
+        echo ""
     fi
-    echo ""
-    echo "(or open a new terminal tab - changes are permanent)"
-    echo ""
-    echo "Backup saved at: ${SHELL_RC}.backup-$(date +%s)"
-    echo ""
 }
 
 install() {
     echo "Installing custom bash additions"
     echo "================================"
     echo ""
-    
-    detect_os
-    
-    if [ "$OS" == "mac" ]; then
-        echo "Detected: macOS"
-    else
-        echo "Detected: Linux"
+
+    detect_shell
+
+    if [ ! -f "$CUSTOM_FILE" ]; then
+        echo "Error: bash-custom.txt not found next to setup.sh"
+        echo "Expected it at: $CUSTOM_FILE"
+        exit 1
     fi
-    echo "Shell config: $SHELL_RC"
-    echo ""
-    
+
     # Create shell config file if it does not exist
     if [ ! -f "$SHELL_RC" ]; then
         echo "Shell config file not found. Creating $SHELL_RC..."
-        touch "$SHELL_RC"
-        if [ $? -ne 0 ]; then
+        if ! touch "$SHELL_RC"; then
             echo "Error: could not create $SHELL_RC"
             echo "Try running: touch $SHELL_RC"
             exit 1
@@ -132,34 +215,21 @@ install() {
         echo "Created $SHELL_RC"
         echo ""
     fi
-    
-    # Check if bash-custom.txt exists
-    if [ ! -f "bash-custom.txt" ]; then
-        echo "Error: bash-custom.txt not found in current directory"
-        echo "Please run this script from the repository root"
-        exit 1
-    fi
-    
-    # Backup existing config
-    echo "Creating backup..."
-    if [ -s "$SHELL_RC" ]; then
-        # File exists and is not empty
-        cp "$SHELL_RC" "$BACKUP_RC"
-        echo "Backup saved: $BACKUP_RC"
-    else
-        echo "No existing config to backup (file is new or empty)"
-    fi
-    echo ""
-    
-    # Check if already installed
-    if grep -q "# CUSTOM BASH" "$SHELL_RC" 2>/dev/null; then
+
+    local kind
+    kind="$(installed_kind)"
+
+    if [ "$kind" != "none" ]; then
         echo "Custom bash additions already found in $SHELL_RC"
+        if [ "$kind" = "legacy" ]; then
+            echo "(old style: a pasted copy. Update replaces it with a source line.)"
+        fi
         echo "Would you like to:"
         echo "  1) Skip installation (keep existing)"
         echo "  2) Update (replace existing with new version)"
         echo "  3) Cancel"
-        read -p "Enter choice [1/2/3]: " choice
-        
+        read -r -p "Enter choice [1/2/3]: " choice || choice=""
+
         case $choice in
             1)
                 echo "Keeping existing installation"
@@ -167,18 +237,6 @@ install() {
                 ;;
             2)
                 echo "Updating existing installation..."
-                # Remove everything from # CUSTOM BASH to end of file
-                sed -i.tmp '/# CUSTOM BASH/,$d' "$SHELL_RC"
-                rm -f "${SHELL_RC}.tmp"
-                # Remove trailing lines that are blank or only contain # and =
-                LAST_LINE=$(grep -n '[a-zA-Z0-9]' "$SHELL_RC" | tail -1 | cut -d: -f1)
-                if [ -n "$LAST_LINE" ]; then
-                    head -n "$LAST_LINE" "$SHELL_RC" > "$SHELL_RC.tmp" && mv "$SHELL_RC.tmp" "$SHELL_RC"
-                else
-                    # No alphanumeric content found - file should be empty
-                    > "$SHELL_RC"
-                fi
-                # Ask about emoji preference for update
                 ask_emoji_preference
                 ;;
             3)
@@ -193,26 +251,23 @@ install() {
     else
         ask_emoji_preference
     fi
-    
-    # Append bash-custom.txt to shell config
+
+    echo ""
+    echo "Creating backup..."
+    backup_rc
+    echo ""
+
     echo "Installing custom bash additions..."
-    cat bash-custom.txt >> "$SHELL_RC"
-    
-    # Apply emoji preference
-    apply_emoji_preference
-    
+    if [ "$kind" = "none" ]; then
+        append_block
+    else
+        rewrite_rc replace
+    fi
+
     echo ""
     echo "Installation complete"
     echo ""
-    echo "Changes applied. To see them in this terminal:"
-    if [ "$OS" == "mac" ]; then
-        echo "  source ~/.zshrc"
-    else
-        echo "  source ~/.bashrc"
-    fi
-    echo ""
-    echo "(or open a new terminal tab - changes are permanent)"
-    echo ""
+    print_reload_hint
     echo "Try it out:"
     echo "  - bhelp         (show all commands)"
     echo "  - gs            (git status)"
@@ -220,7 +275,7 @@ install() {
     echo ""
 }
 
-if [ "$1" == "-u" ] || [ "$1" == "--uninstall" ]; then
+if [ "${1:-}" == "-u" ] || [ "${1:-}" == "--uninstall" ]; then
     uninstall
 else
     install

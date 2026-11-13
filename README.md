@@ -16,16 +16,26 @@ source ~/.zshrc   # macOS
 
 ### Manual Installation
 
-1. Copy `bash-custom.txt` contents to your shell config:
+1. Add a line to your shell config that loads `bash-custom.txt` from the cloned folder:
    ```bash
-   cat bash-custom.txt >> ~/.bashrc  # Linux
-   cat bash-custom.txt >> ~/.zshrc   # macOS
+   echo "source '$PWD/bash-custom.txt'" >> ~/.bashrc  # Linux
+   echo "source '$PWD/bash-custom.txt'" >> ~/.zshrc   # macOS
    ```
 
 2. Reload your shell:
    ```bash
    source ~/.bashrc  # or source ~/.zshrc
    ```
+
+### Update
+
+```bash
+git pull
+
+# Reload your shell
+source ~/.bashrc  # Linux
+source ~/.zshrc   # macOS
+```
 
 ### Uninstall
 
@@ -38,4 +48,4 @@ source ~/.bashrc  # Linux
 source ~/.zshrc   # macOS
 ```
 
-- `bhelp` - Show all custom commands
+`bhelp` - Show all custom commands
