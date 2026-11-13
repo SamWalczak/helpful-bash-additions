@@ -7,6 +7,18 @@
 # Emoji configuration (set to false for compatibility with terminals that don't support emoji)
 USE_EMOJI=true
 
+# Use a UTF-8 locale when the session has none
+if [ "$(locale charmap 2>/dev/null)" != "UTF-8" ]; then
+    utf8_locale=$(locale -a 2>/dev/null | grep -ixE 'c\.utf-?8' | head -n 1)
+    if [ -z "$utf8_locale" ]; then
+        utf8_locale=$(locale -a 2>/dev/null | grep -ixE 'en_us\.utf-?8' | head -n 1)
+    fi
+    if [ -n "$utf8_locale" ]; then
+        export LC_CTYPE="$utf8_locale"
+    fi
+    unset utf8_locale
+fi
+
 if [ -n "$BASH_VERSION" ]; then
     CURRENT_SHELL="bash"
     RC_FILE="$HOME/.bashrc"
@@ -238,9 +250,16 @@ if [ "$CURRENT_SHELL" = "zsh" ]; then
     PROMPT+='$(parse_git_info)'                   # Commit hash + extras
     PROMPT+='%f%b$ '                              # Reset color + prompt
 else
-    PROMPT_COMMAND="rotate_shrimp${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
-    
-    PS1='${CURRENT_SHRIMP} '
+    if [[ "$PROMPT_COMMAND" != *rotate_shrimp* ]]; then
+        PROMPT_COMMAND="rotate_shrimp${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+    fi
+
+    if [ "$USE_EMOJI" = true ]; then
+        # Realign cursor after the emoji
+        PS1='${CURRENT_SHRIMP}\[\033[3G\] '
+    else
+        PS1='${CURRENT_SHRIMP} '
+    fi
     PS1+='\[\033[0;90m\][\t]\[\033[00m\] '        # Timestamp [HH:MM:SS] (gray)
     PS1+='\[\033[01;32m\]\u@\h\[\033[00m\]:'      # user@host (green)
     PS1+='\[\033[01;34m\]\w\[\033[00m\]'          # Current directory (blue)
