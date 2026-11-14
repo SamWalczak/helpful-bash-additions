@@ -21,9 +21,11 @@ fi
 if [ -n "$ZSH_VERSION" ]; then
     CURRENT_SHELL="zsh"
     RC_FILE="$HOME/.zshrc"
+    eval 'CUSTOM_DIR="${${(%):-%x}:A:h}"'
 else
     CURRENT_SHELL="bash"
     RC_FILE="$HOME/.bashrc"
+    CUSTOM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
 fi
 
 # ~*x_X- SHRIMP ROTATION -X_x*~
@@ -103,6 +105,43 @@ toggle_emoji() {
     fi
 }
 
+bupdate() {
+    if ! git -C "$CUSTOM_DIR" rev-parse --git-dir > /dev/null 2>&1; then
+        echo "Can not check for updates: $CUSTOM_DIR is not a git clone"
+        return 1
+    fi
+    echo "Checking for updates..."
+    if ! git -C "$CUSTOM_DIR" fetch --quiet 2> /dev/null; then
+        echo "Could not check for updates (git fetch failed). Are you online?"
+        return 1
+    fi
+    local behind answer
+    behind=$(git -C "$CUSTOM_DIR" rev-list --count 'HEAD..@{upstream}' 2> /dev/null)
+    if [ -z "$behind" ]; then
+        echo "Can not check for updates: this clone's branch does not track a remote branch"
+        return 1
+    fi
+    if [ "$behind" -eq 0 ]; then
+        echo "Already up to date"
+        return 0
+    fi
+    printf "Update available. Download? (y/n) "
+    read -r answer
+    case "$answer" in
+        y|Y)
+            if git -C "$CUSTOM_DIR" pull --ff-only; then
+                echo "Updated. Run bsource or open a new terminal to use it."
+            else
+                echo "Update failed. Nothing was changed. See git's message above."
+                return 1
+            fi
+            ;;
+        *)
+            echo "Not updated"
+            ;;
+    esac
+}
+
 bashhelp() {
     echo "---------------------------------------------------"
     echo "  CUSTOM SHELL ALIASES ($CURRENT_SHELL)"
@@ -128,6 +167,7 @@ bashhelp() {
     echo "  bopen                  - Edit shell config"
     echo "  dumprc / drc           - Show bash file"
     echo "  toggle_emoji           - Toggle emoji on/off in prompt"
+    echo "  bupdate                - Check for updates and download them"
     echo "  bhelp / bash_help      - Show this help message"
     echo ""
     echo "---------------------------------------------------"

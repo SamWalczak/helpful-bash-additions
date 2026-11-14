@@ -30,7 +30,7 @@ source ~/.zshrc   # macOS
 ### Update
 
 ```bash
-git pull
+bupdate
 
 # Reload your shell
 source ~/.bashrc  # Linux
