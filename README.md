@@ -6,26 +6,24 @@ git clone https://github.com/SamWalczak/helpful-bash-additions.git
 cd helpful-bash-additions
 
 # Run the installer
-chmod +x setup.sh
 ./setup.sh
-
-# Reload your shell
-source ~/.bashrc  # Linux
-source ~/.zshrc   # macOS
 ```
+
+Follow the instructions from setup for the command to source the changes
 
 ### Manual Installation
 
-1. Add a line to your shell config that loads `bash-custom.txt` from the cloned folder:
-   ```bash
-   echo "source '$PWD/bash-custom.txt'" >> ~/.bashrc  # Linux
-   echo "source '$PWD/bash-custom.txt'" >> ~/.zshrc   # macOS
-   ```
+Linux (bash):
+```bash
+echo "source '$PWD/bash-custom.txt'" >> ~/.bashrc
+source ~/.bashrc
+```
 
-2. Reload your shell:
-   ```bash
-   source ~/.bashrc  # or source ~/.zshrc
-   ```
+macOS (zsh):
+```bash
+echo "source '$PWD/bash-custom.txt'" >> ~/.zshrc
+source ~/.zshrc
+```
 
 ### Use
 
@@ -33,14 +31,21 @@ source ~/.zshrc   # macOS
 bhelp
 ```
 
+`bhelp` lists every command and gives each a small explanation
+
+### Other Features
+
+- 🦐 and 🍤 alternating command header for better line tracking
+- Timestamps, `user@host` and current path per command
+- Current branch, state/staging (color-coded), commit, ahead/behind arrows, stash counts and merge conflicts when in a git repo
+
 ### Update
 
 ```bash
 bupdate
 
 # Reload your shell
-source ~/.bashrc  # Linux
-source ~/.zshrc   # macOS
+bsource
 ```
 
 ### Uninstall
@@ -51,8 +56,6 @@ source ~/.zshrc   # macOS
 
 # Or from any directory
 bsetup -u
-
-# Reload your shell
-source ~/.bashrc  # Linux
-source ~/.zshrc   # macOS
 ```
+
+Refresh or open a new terminal

@@ -148,6 +148,9 @@ ask_emoji_preference() {
 print_reload_hint() {
     echo "Changes applied. To see them in this terminal:"
     echo "  source $SHELL_RC"
+    if [ "${1:-}" = "installed" ]; then
+        echo "  or: bsource"
+    fi
     echo ""
     echo "(or open a new terminal tab - changes are permanent)"
     echo ""
@@ -267,7 +270,11 @@ install() {
     echo ""
     echo "Installation complete"
     echo ""
-    print_reload_hint
+    if [ "$kind" = "none" ]; then
+        print_reload_hint
+    else
+        print_reload_hint installed
+    fi
     echo "Try it out:"
     echo "  - bhelp         (show all commands)"
     echo "  - gs            (git status)"
