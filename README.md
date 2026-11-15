@@ -27,6 +27,12 @@ source ~/.zshrc   # macOS
    source ~/.bashrc  # or source ~/.zshrc
    ```
 
+### Use
+
+```bash
+bhelp
+```
+
 ### Update
 
 ```bash
@@ -43,9 +49,10 @@ source ~/.zshrc   # macOS
 # From the repository directory
 ./setup.sh -u  # Or ./setup.sh --uninstall
 
+# Or from any directory
+bsetup -u
+
 # Reload your shell
 source ~/.bashrc  # Linux
 source ~/.zshrc   # macOS
 ```
-
-`bhelp` - Show all custom commands

@@ -142,6 +142,10 @@ bupdate() {
     esac
 }
 
+bsetup() {
+    bash "$CUSTOM_DIR/setup.sh" "$@"
+}
+
 bashhelp() {
     echo "---------------------------------------------------"
     echo "  CUSTOM SHELL ALIASES ($CURRENT_SHELL)"
@@ -168,6 +172,7 @@ bashhelp() {
     echo "  dumprc / drc           - Show bash file"
     echo "  toggle_emoji           - Toggle emoji on/off in prompt"
     echo "  bupdate                - Check for updates and download them"
+    echo "  bsetup                 - Run setup (bsetup -u to uninstall)"
     echo "  bhelp / bash_help      - Show this help message"
     echo ""
     echo "---------------------------------------------------"
