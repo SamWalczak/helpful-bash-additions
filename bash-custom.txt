@@ -18,7 +18,7 @@ if [ "$(locale charmap 2>/dev/null)" != "UTF-8" ]; then
     unset utf8_locale
 fi
 
-if [ -n "$ZSH_VERSION" ]; then
+if [ -n "${ZSH_VERSION:-}" ]; then
     CURRENT_SHELL="zsh"
     RC_FILE="$HOME/.zshrc"
     eval 'CUSTOM_DIR="${${(%):-%x}:A:h}"'
@@ -50,8 +50,7 @@ rotate_shrimp() {
 }
 
 # Git shortcuts
-for name in ga gs gst; do unalias "$name" 2>/dev/null; done
-unset name
+unalias ga gs gst 2>/dev/null
 alias gd='git diff'
 alias gdiff='gd'
 alias gb='git branch'
@@ -80,7 +79,7 @@ has_other_gs() {
 save_setting() {
     local begin='# >>> helpful-bash-additions >>>'
     local end='# <<< helpful-bash-additions <<<'
-    local tmp
+    local tmp result
     grep -qxF "$begin" "$RC_FILE" 2>/dev/null || return 1
     tmp="$(mktemp "${TMPDIR:-/tmp}/bash-additions.XXXXXX")" || return 1
     awk -v begin="$begin" -v end="$end" -v name="$1" -v value="$2" '
@@ -89,11 +88,14 @@ save_setting() {
         inside && index($0, name "=") == 1 { next }
         inside && index($0, "source ") == 1 { print name "=" value }
         { print }
-    ' "$RC_FILE" > "$tmp" && cat "$tmp" > "$RC_FILE"
+    ' "$RC_FILE" > "$tmp" && { cat "$tmp" > "$RC_FILE"; } 2>/dev/null
+    result=$?
     rm -f "$tmp"
+    return $result
 }
 
-case "$GS_ALIAS" in
+unset -f gs 2>/dev/null
+case "${GS_ALIAS:-}" in
     gst)
         alias gst='git status'
         ;;
@@ -111,15 +113,15 @@ case "$GS_ALIAS" in
             printf "Keep gs as git status? (y/n) "
             read -r answer
             case "$answer" in
-                y|Y) GS_ALIAS=gs ;;
-                n|N) GS_ALIAS=gst ;;
+                [Yy]|[Yy][Ee][Ss]) GS_ALIAS=gs ;;
+                [Nn]|[Nn][Oo])     GS_ALIAS=gst ;;
                 *)
                     echo "Not changed"
                     return 1
                     ;;
             esac
             if ! save_setting GS_ALIAS "$GS_ALIAS"; then
-                echo "Saved for this session only (no setup.sh block in $RC_FILE)"
+                echo "Kept for this session only (not saved in $RC_FILE)"
             fi
             unset -f gs
             if [ "$GS_ALIAS" = gs ]; then
@@ -135,7 +137,7 @@ esac
 
 # Pop a specific stash
 gpopn() {
-    if [ -z "$1" ]; then
+    if [ -z "${1:-}" ]; then
         echo "Usage: gpopn <stash-number> or gpn <stash-number>"
         echo "Example: gpopn 0"
         echo "Run glist or gsl to see all stashes"
@@ -160,16 +162,12 @@ toggle_emoji() {
     set_shrimps
     build_prompt
 
-    local begin='# >>> helpful-bash-additions >>>'
-    local end='# <<< helpful-bash-additions <<<'
     local state="enabled"
     [ "$USE_EMOJI" = true ] || state="disabled"
-    if grep -qxF "$begin" "$RC_FILE" 2>/dev/null; then
-        sed -i.tmp "/^$begin\$/,/^$end\$/ s/^USE_EMOJI=.*/USE_EMOJI=$USE_EMOJI/" "$RC_FILE"
-        rm -f "${RC_FILE}.tmp"
+    if save_setting USE_EMOJI "$USE_EMOJI"; then
         echo "Emoji $state"
     else
-        echo "Emoji $state for this session only (no setup.sh block in $RC_FILE)"
+        echo "Emoji $state for this session only (not saved in $RC_FILE)"
     fi
 }
 
@@ -196,7 +194,7 @@ bupdate() {
     printf "Update available. Download? (y/n) "
     read -r answer
     case "$answer" in
-        y|Y)
+        [Yy]|[Yy][Ee][Ss])
             if git -C "$CUSTOM_DIR" pull --ff-only; then
                 echo "Updated. Run bsource or open a new terminal to use it."
             else
@@ -356,11 +354,13 @@ if [ "$CURRENT_SHELL" = "zsh" ]; then
         PROMPT+='%(4V. %F{magenta}%BCONFLICT%b%f.)'   # Merge conflict
         PROMPT+='%5v'                                 # Ahead/behind arrows
         PROMPT+='%(9V. %F{cyan}%9v%f.)'               # stash:N
-        PROMPT+='%f%b$ '                              # Reset color + prompt
+        PROMPT+='%f%b%(!.#.$) '                       # Reset color + prompt
     }
     build_prompt
 else
     update_prompt() {
+        # Start on a new line if the last output had no newline
+        printf '%*s\r\033[K' "${COLUMNS:-80}" ''
         rotate_shrimp
         git_state
         local s=$'\001' e=$'\002' esc=$'\033'
@@ -385,6 +385,7 @@ else
         PROMPT_GIT+="$reset"
     }
 
+    PROMPT_COMMAND="${PROMPT_COMMAND:-}"
     PROMPT_COMMAND="${PROMPT_COMMAND//rotate_shrimp; /}"
     PROMPT_COMMAND="${PROMPT_COMMAND//rotate_shrimp/}"
     if [[ "$PROMPT_COMMAND" != *update_prompt* ]]; then

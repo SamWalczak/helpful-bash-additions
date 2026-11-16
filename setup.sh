@@ -134,6 +134,13 @@ append_block() {
     print_block >> "$SHELL_RC"
 }
 
+check_writable() {
+    if [ ! -w "$SHELL_RC" ]; then
+        echo "Error: can not write to $SHELL_RC"
+        exit 1
+    fi
+}
+
 ask_emoji_preference() {
     echo ""
     echo "Enable emoji in prompt?"
@@ -141,7 +148,7 @@ ask_emoji_preference() {
     echo "  n) No  - Use [>] [<] instead (better for some terminals)"
     read -r -p "Choice [Y/n]: " emoji_choice || emoji_choice=""
 
-    if [[ "$emoji_choice" =~ ^[Nn]$ ]]; then
+    if [[ "$emoji_choice" =~ ^[Nn][Oo]?$ ]]; then
         USE_EMOJI=false
     else
         USE_EMOJI=true
@@ -172,10 +179,12 @@ uninstall() {
         exit 0
     fi
 
+    check_writable
+
     echo "Warning: this will remove the custom bash additions from $SHELL_RC"
     read -r -p "Are you sure? [y/N]: " confirm || confirm=""
 
-    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    if [[ ! "$confirm" =~ ^[Yy]([Ee][Ss])?$ ]]; then
         echo "Uninstall cancelled"
         exit 0
     fi
@@ -221,6 +230,8 @@ install() {
         echo "Created $SHELL_RC"
         echo ""
     fi
+
+    check_writable
 
     local kind
     kind="$(installed_kind)"
