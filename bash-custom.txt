@@ -51,7 +51,7 @@ rotate_shrimp() {
 
 # Git shortcuts
 alias gs='git status'
-alias ga='git add -A'
+unalias ga 2>/dev/null
 alias gd='git diff'
 alias gdiff='gd'
 alias gb='git branch'
@@ -64,6 +64,10 @@ alias gstash='git stash'
 alias gpop='git stash pop'
 alias glist='git stash list'
 alias gsl='git stash list'
+
+ga() {
+    git add -A "$@" && git status --short
+}
 
 # Pop a specific stash
 gpopn() {
@@ -153,7 +157,7 @@ bashhelp() {
     echo ""
     echo "GIT:"
     echo "  gs                     - Git status"
-    echo "  ga                     - Git add all"
+    echo "  ga                     - Git add all, then list what is staged"
     echo "  gd/gdiff               - Git diff"
     echo "  gb                     - Git branch list"
     echo "  gco <branch>           - Git checkout branch (use -b for new)"
