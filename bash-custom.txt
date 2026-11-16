@@ -50,8 +50,8 @@ rotate_shrimp() {
 }
 
 # Git shortcuts
-alias gs='git status'
-unalias ga 2>/dev/null
+for name in ga gs gst; do unalias "$name" 2>/dev/null; done
+unset name
 alias gd='git diff'
 alias gdiff='gd'
 alias gb='git branch'
@@ -68,6 +68,70 @@ alias gsl='git stash list'
 ga() {
     git add -A "$@" && git status --short
 }
+
+has_other_gs() {
+    if [ "$CURRENT_SHELL" = "zsh" ]; then
+        whence -p gs > /dev/null 2>&1
+    else
+        type -P gs > /dev/null 2>&1
+    fi
+}
+
+save_setting() {
+    local begin='# >>> helpful-bash-additions >>>'
+    local end='# <<< helpful-bash-additions <<<'
+    local tmp
+    grep -qxF "$begin" "$RC_FILE" 2>/dev/null || return 1
+    tmp="$(mktemp "${TMPDIR:-/tmp}/bash-additions.XXXXXX")" || return 1
+    awk -v begin="$begin" -v end="$end" -v name="$1" -v value="$2" '
+        $0 == begin { inside = 1 }
+        $0 == end { inside = 0 }
+        inside && index($0, name "=") == 1 { next }
+        inside && index($0, "source ") == 1 { print name "=" value }
+        { print }
+    ' "$RC_FILE" > "$tmp" && cat "$tmp" > "$RC_FILE"
+    rm -f "$tmp"
+}
+
+case "$GS_ALIAS" in
+    gst)
+        alias gst='git status'
+        ;;
+    gs)
+        alias gs='git status'
+        ;;
+    *)
+        gs() {
+            if ! has_other_gs; then
+                git status "$@"
+                return
+            fi
+            local answer
+            echo "Ghostscript is also installed as gs"
+            printf "Keep gs as git status? (y/n) "
+            read -r answer
+            case "$answer" in
+                y|Y) GS_ALIAS=gs ;;
+                n|N) GS_ALIAS=gst ;;
+                *)
+                    echo "Not changed"
+                    return 1
+                    ;;
+            esac
+            if ! save_setting GS_ALIAS "$GS_ALIAS"; then
+                echo "Saved for this session only (no setup.sh block in $RC_FILE)"
+            fi
+            unset -f gs
+            if [ "$GS_ALIAS" = gs ]; then
+                alias gs='git status'
+                git status "$@"
+            else
+                alias gst='git status'
+                echo "Git status is now gst, gs runs Ghostscript"
+            fi
+        }
+        ;;
+esac
 
 # Pop a specific stash
 gpopn() {
@@ -156,7 +220,7 @@ bashhelp() {
     echo "---------------------------------------------------"
     echo ""
     echo "GIT:"
-    echo "  gs                     - Git status"
+    printf "  %-22s - Git status\n" "${GS_ALIAS:-gs}"
     echo "  ga                     - Git add all, then list what is staged"
     echo "  gd/gdiff               - Git diff"
     echo "  gb                     - Git branch list"

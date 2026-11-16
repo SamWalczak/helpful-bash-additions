@@ -64,6 +64,9 @@ print_block() {
     echo "$BEGIN_MARK"
     echo "# Added by setup.sh. To remove: $REPO_DIR/setup.sh -u"
     echo "USE_EMOJI=$USE_EMOJI"
+    if [ -n "$GS_ALIAS" ]; then
+        echo "GS_ALIAS=$GS_ALIAS"
+    fi
     echo "source '$escaped'"
     echo "$END_MARK"
 }
@@ -221,6 +224,13 @@ install() {
 
     local kind
     kind="$(installed_kind)"
+    GS_ALIAS=""
+    if [ "$kind" = "block" ]; then
+        case "$(sed -n "/^$BEGIN_MARK\$/,/^$END_MARK\$/ s/^GS_ALIAS=//p" "$SHELL_RC")" in
+            gs)  GS_ALIAS=gs ;;
+            gst) GS_ALIAS=gst ;;
+        esac
+    fi
 
     if [ "$kind" != "none" ]; then
         echo "Custom bash additions already found in $SHELL_RC"
@@ -277,7 +287,7 @@ install() {
     fi
     echo "Try it out:"
     echo "  - bhelp         (show all commands)"
-    echo "  - gs            (git status)"
+    printf "  - %-14s(git status)\n" "${GS_ALIAS:-gs}"
     echo "  - toggle_emoji  (toggle emoji on/off)"
     echo ""
 }
