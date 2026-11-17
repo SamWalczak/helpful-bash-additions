@@ -383,6 +383,18 @@ else
             PROMPT_GIT+=" ${s}${esc}[0;36m${e}stash:$PROMPT_STASH${reset}"
         fi
         PROMPT_GIT+="$reset"
+        # bash loses the cursor when the prompt covers more than two rows
+        PROMPT_BREAK=""
+        if (( BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4) )); then
+            local text="${PS1@P}"
+            while [[ "$text" == *$'\001'*$'\002'* ]]; do
+                text="${text%%$'\001'*}${text#*$'\002'}"
+            done
+            local ascii="${text//[^[:ascii:]]/}"
+            if [ $(( 2 * ${#text} - ${#ascii} )) -ge $(( 2 * ${COLUMNS:-80} )) ]; then
+                PROMPT_BREAK=$'\n'
+            fi
+        fi
     }
 
     PROMPT_COMMAND="${PROMPT_COMMAND:-}"
@@ -403,7 +415,7 @@ else
         PS1+='\[\033[01;32m\]\u@\h\[\033[00m\]:'      # user@host (green)
         PS1+='\[\033[01;34m\]\w\[\033[00m\]'          # Current directory (blue)
         PS1+='${PROMPT_GIT}'                         # Branch, hash, extras
-        PS1+='\$ '                                    # Prompt
+        PS1+='${PROMPT_BREAK}\$ '                     # Prompt
     }
     build_prompt
 fi
