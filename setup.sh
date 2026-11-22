@@ -67,6 +67,15 @@ print_block() {
     if [ -n "$GS_ALIAS" ]; then
         echo "GS_ALIAS=$GS_ALIAS"
     fi
+    if [ -n "$KEEP_SHORTCUTS" ]; then
+        echo "KEEP_SHORTCUTS=\"$KEEP_SHORTCUTS\""
+    fi
+    if [ -n "$SKIP_SHORTCUTS" ]; then
+        echo "SKIP_SHORTCUTS=\"$SKIP_SHORTCUTS\""
+    fi
+    if [ -n "$OTHER_ALIASES" ]; then
+        echo "$OTHER_ALIASES"
+    fi
     echo "source '$escaped'"
     echo "$END_MARK"
 }
@@ -236,11 +245,17 @@ install() {
     local kind
     kind="$(installed_kind)"
     GS_ALIAS=""
+    KEEP_SHORTCUTS=""
+    SKIP_SHORTCUTS=""
+    OTHER_ALIASES=""
     if [ "$kind" = "block" ]; then
         case "$(sed -n "/^$BEGIN_MARK\$/,/^$END_MARK\$/ s/^GS_ALIAS=//p" "$SHELL_RC")" in
             gs)  GS_ALIAS=gs ;;
             gst) GS_ALIAS=gst ;;
         esac
+        KEEP_SHORTCUTS="$(sed -n "/^$BEGIN_MARK\$/,/^$END_MARK\$/ s/^KEEP_SHORTCUTS=\"\([a-z_ ]*\)\"\$/\1/p" "$SHELL_RC")"
+        SKIP_SHORTCUTS="$(sed -n "/^$BEGIN_MARK\$/,/^$END_MARK\$/ s/^SKIP_SHORTCUTS=\"\([A-Za-z0-9_= ]*\)\"\$/\1/p" "$SHELL_RC")"
+        OTHER_ALIASES="$(sed -n "/^$BEGIN_MARK\$/,/^$END_MARK\$/ s/^\(alias [A-Za-z0-9_]*='command [a-z_]*'\)\$/\1/p" "$SHELL_RC")"
     fi
 
     if [ "$kind" != "none" ]; then

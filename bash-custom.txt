@@ -52,15 +52,15 @@ rotate_shrimp() {
 # Git shortcuts
 unalias ga gs gst 2>/dev/null
 alias gd='git diff'
-alias gdiff='gd'
+alias gdiff='git diff'
 alias gl='git log'
-alias glog='gl'
+alias glog='git log'
 alias gb='git branch'
 alias gco='git checkout'
 alias gcm='git commit -m'
 alias gpo='git push origin HEAD'
 alias gpr='git pull origin $(git branch --show-current)'
-alias gpull='gpr'
+alias gpull='git pull origin $(git branch --show-current)'
 alias gundo='git reset --soft HEAD~1'
 alias gstash='git stash'
 alias gpop='git stash pop'
@@ -69,14 +69,6 @@ alias gsl='git stash list'
 
 ga() {
     git add -A "$@" && git status --short
-}
-
-has_other_gs() {
-    if [ "$CURRENT_SHELL" = "zsh" ]; then
-        whence -p gs > /dev/null 2>&1
-    else
-        type -P gs > /dev/null 2>&1
-    fi
 }
 
 save_setting() {
@@ -98,45 +90,11 @@ save_setting() {
 }
 
 unset -f gs 2>/dev/null
-case "${GS_ALIAS:-}" in
-    gst)
-        alias gst='git status'
-        ;;
-    gs)
-        alias gs='git status'
-        ;;
-    *)
-        gs() {
-            if ! has_other_gs; then
-                git status "$@"
-                return
-            fi
-            local answer
-            echo "Ghostscript is also installed as gs"
-            printf "Keep gs as git status? (y/n) "
-            read -r answer
-            case "$answer" in
-                [Yy]|[Yy][Ee][Ss]) GS_ALIAS=gs ;;
-                [Nn]|[Nn][Oo])     GS_ALIAS=gst ;;
-                *)
-                    echo "Not changed"
-                    return 1
-                    ;;
-            esac
-            if ! save_setting GS_ALIAS "$GS_ALIAS"; then
-                echo "Kept for this session only (not saved in $RC_FILE)"
-            fi
-            unset -f gs
-            if [ "$GS_ALIAS" = gs ]; then
-                alias gs='git status'
-                git status "$@"
-            else
-                alias gst='git status'
-                echo "Git status is now gst, gs runs Ghostscript"
-            fi
-        }
-        ;;
-esac
+if [ "${GS_ALIAS:-}" = gst ]; then
+    alias gst='git status'
+else
+    alias gs='git status'
+fi
 
 # Pop a specific stash
 gpopn() {
@@ -154,7 +112,7 @@ alias gpn='gpopn'
 alias bsource='source "$RC_FILE"'
 alias bopen='vim "$RC_FILE"'
 alias dumprc='tail -n +1 "$RC_FILE"'
-alias drc='dumprc'
+alias drc='tail -n +1 "$RC_FILE"'
 
 toggle_emoji() {
     if [ "$USE_EMOJI" = true ]; then
@@ -216,12 +174,22 @@ bsetup() {
 }
 
 bashhelp() {
+    local gs_name=" ${SKIP_SHORTCUTS:-} "
+    case "$gs_name" in
+        *" gs="*)
+            gs_name="${gs_name#* gs=}"
+            gs_name="${gs_name%% *}"
+            ;;
+        *)
+            gs_name="${GS_ALIAS:-gs}"
+            ;;
+    esac
     echo "---------------------------------------------------"
     echo "  CUSTOM SHELL ALIASES ($CURRENT_SHELL)"
     echo "---------------------------------------------------"
     echo ""
     echo "GIT:"
-    printf "  %-22s - Git status\n" "${GS_ALIAS:-gs}"
+    printf "  %-22s - Git status\n" "$gs_name"
     echo "  ga                     - Git add all, then list what is staged"
     echo "  gd/gdiff               - Git diff"
     echo "  gl/glog                - Git log"
@@ -249,6 +217,139 @@ bashhelp() {
 }
 alias bhelp='bashhelp'
 alias bash_help='bashhelp'
+
+# Ask once before using a name another program already has
+other_program() {
+    if [ "$CURRENT_SHELL" = "zsh" ]; then
+        whence -p "$1" 2> /dev/null
+    else
+        type -P "$1" 2> /dev/null
+    fi
+}
+
+move_shortcut() {
+    local line
+    if line="$(alias "$1" 2> /dev/null)"; then
+        eval "alias $2=${line#*=}"
+        unalias "$1"
+    elif line="$(declare -f "$1")"; then
+        eval "$2${line#"$1"}"
+        unset -f "$1"
+    else
+        return 1
+    fi
+}
+
+ask_alias() {
+    while true; do
+        printf "Alias for %s (Enter for none): " "$1"
+        read -r
+        case "$REPLY" in
+            "")
+                return 1
+                ;;
+            *[!A-Za-z0-9_]*)
+                echo "Use only letters, numbers and _"
+                ;;
+            *)
+                if ! type "$REPLY" > /dev/null 2>&1; then
+                    return 0
+                fi
+                echo "$REPLY is already a command"
+                ;;
+        esac
+    done
+}
+
+shortcut_question() {
+    local name="$1" program text answer setting moved
+    shift
+    program="$(other_program "$name")"
+    if text="$(alias "real_$name" 2> /dev/null)"; then
+        text="${text#*=}"
+        text="${text#\'}"
+        text="${text%\'}"
+    fi
+    echo "Another program is also installed as $name ($program)"
+    printf "Keep %s as %s? (y/n) " "$name" "${text:-a shortcut}"
+    read -r answer
+    case "$answer" in
+        [Yy]|[Yy][Ee][Ss])
+            KEEP_SHORTCUTS="${KEEP_SHORTCUTS:+$KEEP_SHORTCUTS }$name"
+            setting="KEEP_SHORTCUTS=\"$KEEP_SHORTCUTS\""
+            ;;
+        [Nn]|[Nn][Oo])
+            if ask_alias "${text:-the shortcut}"; then
+                moved="$REPLY"
+            fi
+            SKIP_SHORTCUTS="${SKIP_SHORTCUTS:+$SKIP_SHORTCUTS }$name${moved:+=$moved}"
+            setting="SKIP_SHORTCUTS=\"$SKIP_SHORTCUTS\""
+            ;;
+        *)
+            echo "Not changed"
+            return 1
+            ;;
+    esac
+    if ! save_setting "${setting%%=*}" "${setting#*=}"; then
+        echo "Kept for this session only (not saved in $RC_FILE)"
+    fi
+    unset -f "$name"
+    case "$setting" in
+        KEEP*)
+            move_shortcut "real_$name" "$name"
+            if ask_alias "$program"; then
+                alias "$REPLY=command $name"
+                if ! save_setting "alias $REPLY" "'command $name'"; then
+                    echo "Kept for this session only (not saved in $RC_FILE)"
+                fi
+                echo "$REPLY now runs $program"
+            else
+                echo "The other $name is still there: command $name"
+            fi
+            eval "$name \"\$@\""
+            ;;
+        *)
+            if [ -n "${moved:-}" ]; then
+                move_shortcut "real_$name" "$moved"
+                echo "$moved is now ${text:-the shortcut}, $name runs $program"
+            else
+                unalias "real_$name" 2> /dev/null || unset -f "real_$name"
+                echo "$name now runs $program"
+            fi
+            ;;
+    esac
+}
+
+ask_first() {
+    local name moved
+    for name in "$@"; do
+        moved=" ${SKIP_SHORTCUTS:-} "
+        case "$moved" in
+            *" $name="*)
+                moved="${moved#* $name=}"
+                move_shortcut "$name" "${moved%% *}"
+                unset -f "$name" 2> /dev/null
+                continue
+                ;;
+        esac
+        other_program "$name" > /dev/null || continue
+        [ "$name" = "${GS_ALIAS:-}" ] && continue
+        case " ${KEEP_SHORTCUTS:-} " in
+            *" $name "*) continue ;;
+        esac
+        case " ${SKIP_SHORTCUTS:-} " in
+            *" $name "*)
+                unalias "$name" 2> /dev/null
+                unset -f "$name" 2> /dev/null
+                continue
+                ;;
+        esac
+        move_shortcut "$name" "real_$name" || continue
+        eval "$name() { shortcut_question $name \"\$@\"; }"
+    done
+}
+ask_first gs gst ga gd gdiff gl glog gb gco gcm gpo gpr gpull gundo gstash gpop gpn gpopn gsl glist \
+    bsource bopen dumprc drc toggle_emoji bupdate bsetup bhelp bash_help bashhelp
 
 safe_git() {
     local overrides=() key
