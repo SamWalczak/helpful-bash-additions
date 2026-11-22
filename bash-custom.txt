@@ -53,11 +53,14 @@ rotate_shrimp() {
 unalias ga gs gst 2>/dev/null
 alias gd='git diff'
 alias gdiff='gd'
+alias gl='git log'
+alias glog='gl'
 alias gb='git branch'
 alias gco='git checkout'
 alias gcm='git commit -m'
 alias gpo='git push origin HEAD'
 alias gpr='git pull origin $(git branch --show-current)'
+alias gpull='gpr'
 alias gundo='git reset --soft HEAD~1'
 alias gstash='git stash'
 alias gpop='git stash pop'
@@ -221,11 +224,12 @@ bashhelp() {
     printf "  %-22s - Git status\n" "${GS_ALIAS:-gs}"
     echo "  ga                     - Git add all, then list what is staged"
     echo "  gd/gdiff               - Git diff"
+    echo "  gl/glog                - Git log"
     echo "  gb                     - Git branch list"
     echo "  gco <branch>           - Git checkout branch (use -b for new)"
     echo "  gcm 'message'          - Git commit with message"
     echo "  gpo                    - Git push to current branch"
-    echo "  gpr                    - Git pull from current branch"
+    echo "  gpr/gpull              - Git pull from current branch"
     echo "  gundo                  - Undo last commit (keep changes)"
     echo "  gstash                 - Stash changes"
     echo "  gpop                   - Pop latest stash"
