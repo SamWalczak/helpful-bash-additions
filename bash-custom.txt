@@ -512,7 +512,7 @@ else
     build_prompt() {
         if [ "$USE_EMOJI" = true ]; then
             # Realign cursor after the emoji
-            PS1='${CURRENT_SHRIMP}\[\033[3G\] '
+            PS1='\[\0337\]${CURRENT_SHRIMP}\[\0338\033[2C\] '
         else
             PS1='${CURRENT_SHRIMP} '
         fi
